@@ -5,6 +5,7 @@ from auth import hash_password, logout_button, require_admin, require_login
 from branding import LOGO_PATH, apply_logo
 from db import Originator, User, get_session
 from rcm_scraper import refresh_bids_in_db
+from seed_locations import seed_locations
 
 st.set_page_config(page_title="Admin | RCM Originator Portal", page_icon=LOGO_PATH, layout="wide")
 apply_logo()
@@ -188,7 +189,12 @@ try:
                 hide_index=True,
             )
         else:
-            st.warning("No locations are linked to a feed board yet. Run seed_locations.py first.")
+            st.warning("No locations are linked to a feed board yet.")
+            if st.button("Seed the 12 RCM Co-op locations"):
+                added = seed_locations(session)
+                session.commit()
+                st.success(f"Seeded {added} locations.")
+                st.rerun()
 
         if st.button("Refresh live bids now", type="primary"):
             with st.spinner("Fetching RCM Co-op cash bids..."):

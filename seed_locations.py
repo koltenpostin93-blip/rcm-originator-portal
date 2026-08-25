@@ -49,33 +49,39 @@ LOCATIONS = [
 ]
 
 
+def seed_locations(session) -> int:
+    """Upsert the 12 RCM Co-op locations using the given session (caller commits/closes)."""
+    for loc in LOCATIONS:
+        existing = session.query(Originator).filter(Originator.company_name == loc["company_name"]).first()
+        if existing:
+            existing.phone = loc["phone"]
+            existing.city = loc["city"]
+            existing.state = loc["state"]
+            existing.commodities = loc["commodities"]
+            existing.feed_location_id = loc["feed_location_id"]
+            existing.notes = loc["street"]
+        else:
+            session.add(
+                Originator(
+                    company_name=loc["company_name"],
+                    phone=loc["phone"],
+                    city=loc["city"],
+                    state=loc["state"],
+                    commodities=loc["commodities"],
+                    feed_location_id=loc["feed_location_id"],
+                    notes=loc["street"],
+                )
+            )
+    return len(LOCATIONS)
+
+
 def main():
     init_db()
     session = get_session()
     try:
-        for loc in LOCATIONS:
-            existing = session.query(Originator).filter(Originator.company_name == loc["company_name"]).first()
-            if existing:
-                existing.phone = loc["phone"]
-                existing.city = loc["city"]
-                existing.state = loc["state"]
-                existing.commodities = loc["commodities"]
-                existing.feed_location_id = loc["feed_location_id"]
-                existing.notes = loc["street"]
-            else:
-                session.add(
-                    Originator(
-                        company_name=loc["company_name"],
-                        phone=loc["phone"],
-                        city=loc["city"],
-                        state=loc["state"],
-                        commodities=loc["commodities"],
-                        feed_location_id=loc["feed_location_id"],
-                        notes=loc["street"],
-                    )
-                )
+        count = seed_locations(session)
         session.commit()
-        print(f"Seeded/updated {len(LOCATIONS)} RCM Co-op locations.")
+        print(f"Seeded/updated {count} RCM Co-op locations.")
     finally:
         session.close()
 
