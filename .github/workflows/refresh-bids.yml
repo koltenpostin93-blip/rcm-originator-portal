@@ -1,0 +1,24 @@
+name: Refresh RCM cash bids
+
+on:
+  schedule:
+    # GitHub Actions cron is UTC-only and doesn't observe DST, so two entries
+    # are used to land on 4:00 PM Central year-round: 21:00 UTC = 4pm CDT,
+    # 22:00 UTC = 4pm CST. Whichever one doesn't match the current season just
+    # runs an extra, harmless bid refresh an hour early/late.
+    - cron: "0 21 * * *"
+    - cron: "0 22 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - run: python rcm_scraper.py
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
