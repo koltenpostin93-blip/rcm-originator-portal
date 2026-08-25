@@ -1,0 +1,31 @@
+name: Daily purchase recap email
+
+on:
+  schedule:
+    # 3:00 PM Central, business days only. GitHub Actions cron is UTC-only and
+    # doesn't observe DST, so two entries cover both seasons (see
+    # refresh-bids.yml for the same pattern): 20:00 UTC = 3pm CDT,
+    # 21:00 UTC = 3pm CST. The "wrong" one for the current season just sends
+    # an extra, harmless recap an hour early/late.
+    - cron: "0 20 * * 1-5"
+    - cron: "0 21 * * 1-5"
+  workflow_dispatch: {}
+
+jobs:
+  send-recap:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - run: python daily_summary_email.py
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
+          EMAIL_TO: ${{ secrets.EMAIL_TO }}

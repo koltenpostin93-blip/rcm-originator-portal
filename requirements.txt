@@ -7,3 +7,4 @@ bcrypt>=4.0
 psycopg2-binary>=2.9
 snowflake-sqlalchemy>=1.6
 requests>=2.31
+tzdata>=2024.1
