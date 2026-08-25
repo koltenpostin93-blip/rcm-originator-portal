@@ -1,8 +1,10 @@
 """Database engine, session, and models for the RCM Originator Portal.
 
 Defaults to a local SQLite file so the app is fully self-contained and easy
-to hand off. Set DATABASE_URL (e.g. a Postgres URL) to point at a different
-server without changing any code elsewhere in the app.
+to hand off. Set DATABASE_URL to point at a different server without
+changing any code elsewhere in the app — e.g. a Postgres URL, or a Snowflake
+SQLAlchemy URL: "snowflake://{user}:{password}@{account}/{database}/{schema}
+?warehouse={warehouse}&role={role}" (requires snowflake-sqlalchemy).
 """
 import datetime
 import os

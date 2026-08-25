@@ -5,4 +5,5 @@ python-dotenv>=1.0
 pandas>=2.0
 bcrypt>=4.0
 psycopg2-binary>=2.9
+snowflake-sqlalchemy>=1.6
 requests>=2.31

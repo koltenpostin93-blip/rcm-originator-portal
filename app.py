@@ -4,12 +4,11 @@ import streamlit as st
 
 from auth import logout_button, require_login
 from branding import LOGO_PATH, apply_logo
-from db import Bid, Purchase, init_db, get_session
+from db import Bid, Purchase, get_session
 
 st.set_page_config(page_title="RCM Originator Portal", page_icon=LOGO_PATH, layout="wide")
 apply_logo()
 
-init_db()
 user = require_login()
 logout_button()
 

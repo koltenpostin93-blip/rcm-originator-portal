@@ -8,7 +8,7 @@ import bcrypt
 import streamlit as st
 import streamlit_authenticator as stauth
 
-from db import User, get_session
+from db import User, get_session, init_db
 
 COOKIE_NAME = "rcm_originator_portal"
 COOKIE_KEY = "rcm_originator_portal_signature_key"
@@ -60,6 +60,48 @@ def get_authenticator():
     return st.session_state["authenticator"]
 
 
+def _bootstrap_first_admin():
+    """If the database has no admin account yet, render a one-time setup
+    form to create one instead of the normal login screen. Covers any fresh
+    database — a new Cloud deploy, a swapped-in Postgres/Snowflake backend,
+    or local dev — without needing shell access to run a seed script.
+    """
+    session = get_session()
+    try:
+        if session.query(User).filter(User.role == "admin").first():
+            return False
+
+        st.info("No admin account exists yet. Create the first one to continue.")
+        with st.form("bootstrap_admin_form"):
+            username = st.text_input("Username")
+            name = st.text_input("Full name")
+            email = st.text_input("Email")
+            password = st.text_input("Password", type="password")
+            confirm = st.text_input("Confirm password", type="password")
+            submitted = st.form_submit_button("Create admin account", type="primary")
+
+            if submitted:
+                if not username.strip() or not name.strip() or not password:
+                    st.error("Username, name, and password are required.")
+                elif password != confirm:
+                    st.error("Passwords did not match.")
+                else:
+                    session.add(
+                        User(
+                            username=username.strip(),
+                            name=name.strip(),
+                            email=email.strip(),
+                            password_hash=hash_password(password),
+                            role="admin",
+                        )
+                    )
+                    session.commit()
+                    st.success(f"Admin account '{username.strip()}' created. Refresh and log in.")
+        return True
+    finally:
+        session.close()
+
+
 def current_user():
     """Return the logged-in User row, or None."""
     username = st.session_state.get("username")
@@ -80,6 +122,11 @@ def require_login():
 
     Returns the logged-in User row on success.
     """
+    init_db()
+
+    if _bootstrap_first_admin():
+        st.stop()
+
     authenticator = get_authenticator()
     authenticator.login(location="main")
 
