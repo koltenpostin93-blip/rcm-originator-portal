@@ -1,4 +1,8 @@
-"""Scraper for RCM Co-op's live cash bids (rcmcoop.com).
+"""Live fetcher for RCM Co-op's cash bids (rcmcoop.com) — no database involved.
+
+Bid history isn't tracked, so the app calls parsed_bids_by_board() directly
+at render time (through live_bids.py's cached wrapper) instead of scraping
+on a schedule into a table.
 
 RCM's site is powered by the same Barchart/AgriCharts cash-bids widget used
 elsewhere in JSA's tooling (see basis-tracker-streamlit/agricharts_scraper.py).
@@ -18,7 +22,7 @@ from __future__ import annotations
 
 import json
 import re
-from datetime import datetime, timezone
+from datetime import datetime
 
 import requests
 
@@ -92,63 +96,13 @@ def parsed_bids_by_board() -> dict[str, list[dict]]:
     return out
 
 
-def refresh_bids_in_db():
-    """Upsert scraper-sourced Bid rows for every Originator with a feed_location_id.
-
-    Returns (updated_count, skipped_boards) for reporting in the UI.
-    """
-    import datetime as _dt
-
-    from db import Bid, Originator, get_session
-
-    boards = parsed_bids_by_board()
-    session = get_session()
-    updated = 0
-    try:
-        originators = session.query(Originator).filter(Originator.feed_location_id.isnot(None)).all()
-        for o in originators:
-            rows = boards.get(o.feed_location_id, [])
-            for row in rows:
-                existing = (
-                    session.query(Bid)
-                    .filter(
-                        Bid.originator_id == o.id,
-                        Bid.source == "scraper",
-                        Bid.commodity == row["commodity"],
-                        Bid.futures_month == row["futures_month"],
-                    )
-                    .first()
-                )
-                bid_date = _dt.datetime.now(timezone.utc).replace(tzinfo=None)
-                if existing:
-                    existing.basis = row["basis"]
-                    existing.futures_price = row["futures_price"]
-                    existing.cash_price = row["cash_price"]
-                    existing.delivery_start = row["delivery_start"]
-                    existing.bid_date = bid_date
-                else:
-                    session.add(
-                        Bid(
-                            originator_id=o.id,
-                            commodity=row["commodity"],
-                            location=o.company_name,
-                            basis=row["basis"],
-                            futures_month=row["futures_month"],
-                            futures_price=row["futures_price"],
-                            delivery_start=row["delivery_start"],
-                            cash_price=row["cash_price"],
-                            bid_date=bid_date,
-                            source="scraper",
-                            notes="Auto-imported from RCM Co-op cash bids feed",
-                        )
-                    )
-                updated += 1
-        session.commit()
-    finally:
-        session.close()
-    return updated
-
-
 if __name__ == "__main__":
-    count = refresh_bids_in_db()
-    print(f"Updated/inserted {count} scraped bid rows.")
+    # Manual sanity check of the live feed — the app itself fetches this
+    # directly at render time (see live_bids.py), nothing here writes to a
+    # database.
+    boards = parsed_bids_by_board()
+    for board_id, rows in boards.items():
+        print(f"board {board_id}: {len(rows)} bid(s)")
+        for row in rows:
+            print(f"  {row['commodity']:10s} {row['futures_month']:10s} "
+                  f"basis={row['basis']:+.2f} fut=${row['futures_price']:.4f}")

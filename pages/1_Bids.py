@@ -6,6 +6,7 @@ import streamlit as st
 from auth import logout_button, require_login
 from branding import LOGO_PATH, apply_logo
 from db import Bid, Originator, get_session
+from live_bids import get_bids_for_location
 
 st.set_page_config(page_title="Bids | RCM Originator Portal", page_icon=LOGO_PATH, layout="wide")
 apply_logo()
@@ -59,28 +60,31 @@ try:
 
     st.divider()
     st.subheader("Live RCM cash bids")
-    st.caption("Auto-imported from RCM Co-op's cash bids feed. Refreshed periodically — an admin can also refresh on demand from the Admin page.")
+    st.caption("Pulled directly from RCM Co-op's cash bids feed just now (cached up to 2 minutes).")
 
-    live_query = session.query(Bid).filter(Bid.source == "scraper")
-    if target_originator_id:
-        live_query = live_query.filter(Bid.originator_id == target_originator_id)
-    live_bids = live_query.order_by(Bid.commodity).all()
-
-    if not live_bids:
-        st.info("No live bids yet. An admin needs to seed locations and run the scraper.")
+    if user.role == "admin":
+        live_locations = [o for o in originators if not target_originator_id or o.id == target_originator_id]
     else:
-        rows = []
-        for b in live_bids:
+        own = session.query(Originator).filter(Originator.id == target_originator_id).first()
+        live_locations = [own] if own else []
+
+    rows = []
+    for o in live_locations:
+        for b in get_bids_for_location(o.feed_location_id):
             row = {
-                "Commodity": b.commodity,
-                "Basis": b.basis,
-                "Futures Month": b.futures_month,
-                "Cash Price": b.cash_price,
-                "Updated": b.bid_date.strftime("%Y-%m-%d %H:%M") if b.bid_date else None,
+                "Commodity": b["commodity"],
+                "Basis": b["basis"],
+                "Futures Month": b["futures_month"],
+                "Futures Price": b["futures_price"],
+                "Cash Price": b["cash_price"],
             }
             if user.role == "admin":
-                row = {"Location": b.originator.company_name, **row}
+                row = {"Location": o.company_name, **row}
             rows.append(row)
+
+    if not rows:
+        st.info("No live bids available — this location may not be linked to a feed board yet (see Admin).")
+    else:
         st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
 
     st.divider()

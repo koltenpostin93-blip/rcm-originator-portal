@@ -4,7 +4,7 @@ import streamlit as st
 from auth import hash_password, logout_button, require_admin, require_login
 from branding import LOGO_PATH, apply_logo
 from db import Originator, User, get_session
-from rcm_scraper import refresh_bids_in_db
+from live_bids import get_boards
 from seed_locations import seed_locations
 
 st.set_page_config(page_title="Admin | RCM Originator Portal", page_icon=LOGO_PATH, layout="wide")
@@ -170,9 +170,9 @@ try:
     with tab_feed:
         st.subheader("RCM Co-op live cash bids")
         st.caption(
-            "Pulls Corn & Soybean basis directly from RCM Co-op's own cash bids feed "
-            "(the same Barchart/AgriCharts widget powering rcmcoop.com/markets/cash.php) "
-            "and matches it to locations by their `feed_location_id`."
+            "Bids & Purchases pull this feed live (cached up to 2 minutes) — there's nothing to "
+            "refresh or keep in sync here. This tab is just for checking the location → board "
+            "mapping and previewing what the feed currently returns."
         )
         linked = (
             session.query(Originator)
@@ -196,12 +196,16 @@ try:
                 st.success(f"Seeded {added} locations.")
                 st.rerun()
 
-        if st.button("Refresh live bids now", type="primary"):
-            with st.spinner("Fetching RCM Co-op cash bids..."):
-                try:
-                    count = refresh_bids_in_db()
-                    st.success(f"Refreshed {count} live bid rows.")
-                except Exception as exc:
-                    st.error(f"Refresh failed: {exc}")
+        if st.button("Preview live feed now"):
+            boards = get_boards()
+            rows = [
+                {"Board": board_id, "Commodity": b["commodity"], "Futures Month": b["futures_month"],
+                 "Basis": b["basis"], "Futures Price": b["futures_price"]}
+                for board_id, bids in boards.items() for b in bids
+            ]
+            if rows:
+                st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+            else:
+                st.error("The feed returned nothing — RCM's site may be unreachable right now.")
 finally:
     session.close()

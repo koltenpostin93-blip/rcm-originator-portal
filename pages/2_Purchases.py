@@ -5,7 +5,8 @@ import streamlit as st
 
 from auth import logout_button, require_login
 from branding import LOGO_PATH, apply_logo
-from db import Bid, Originator, Purchase, User, get_session
+from db import Originator, Purchase, User, get_session
+from live_bids import get_bids_for_location
 
 st.set_page_config(page_title="Purchases | RCM Originator Portal", page_icon=LOGO_PATH, layout="wide")
 apply_logo()
@@ -30,14 +31,9 @@ def user_names(session):
     return {u.username: u.name for u in session.query(User).all()}
 
 
-def window_options(session, originator_id, commodity):
-    """Live scraped bids for this location/commodity, one per delivery window."""
-    return (
-        session.query(Bid)
-        .filter(Bid.originator_id == originator_id, Bid.commodity == commodity, Bid.source == "scraper")
-        .order_by(Bid.delivery_start)
-        .all()
-    )
+def window_options(feed_location_id, commodity):
+    """Live bids (dicts) for this location's board/commodity, one per delivery window."""
+    return get_bids_for_location(feed_location_id, commodity)
 
 
 def render_purchase_form(session, user, locations, purchase=None):
@@ -53,6 +49,7 @@ def render_purchase_form(session, user, locations, purchase=None):
         prefix = f"new_{nonce}"
 
     loc_by_name = {o.company_name: o.id for o in locations}
+    loc_objs_by_id = {o.id: o for o in locations}
     if not loc_by_name:
         st.warning("No active locations available.")
         return False
@@ -72,10 +69,10 @@ def render_purchase_form(session, user, locations, purchase=None):
     location_name = c2.selectbox("Location", loc_names, index=loc_index, key=f"{prefix}_location")
     location_id = loc_by_name[location_name]
 
-    bids = window_options(session, location_id, commodity)
+    bids = window_options(loc_objs_by_id[location_id].feed_location_id, commodity)
     window_labels = {
-        f"{b.futures_month} — basis {b.basis:+.2f}¢ / fut ${b.futures_price:.4f}": b
-        for b in bids if b.futures_month
+        f"{b['futures_month']} — basis {b['basis']:+.2f}¢ / fut ${b['futures_price']:.4f}": b
+        for b in bids if b["futures_month"]
     }
 
     manual_mode = not window_labels
@@ -86,7 +83,7 @@ def render_purchase_form(session, user, locations, purchase=None):
         default_window_label = None
         if is_edit:
             default_window_label = next(
-                (lbl for lbl, b in window_labels.items() if b.futures_month == purchase.futures_month), None
+                (lbl for lbl, b in window_labels.items() if b["futures_month"] == purchase.futures_month), None
             )
         labels = list(window_labels.keys())
         w_index = labels.index(default_window_label) if default_window_label in labels else 0
@@ -116,7 +113,7 @@ def render_purchase_form(session, user, locations, purchase=None):
 
     basis_key = f"{prefix}_basis_value"
     if not override_basis:
-        st.session_state[basis_key] = matched_bid.basis if matched_bid else (purchase.basis if is_edit else 0.0)
+        st.session_state[basis_key] = matched_bid["basis"] if matched_bid else (purchase.basis if is_edit else 0.0)
     elif basis_key not in st.session_state:
         st.session_state[basis_key] = purchase.basis if is_edit else 0.0
     basis_value = st.number_input(
@@ -126,8 +123,8 @@ def render_purchase_form(session, user, locations, purchase=None):
     futmonth_key = f"{prefix}_futmonth_value"
     futprice_key = f"{prefix}_futprice_value"
     if not override_futures:
-        st.session_state[futmonth_key] = matched_bid.futures_month if matched_bid else (purchase.futures_month if is_edit else "")
-        st.session_state[futprice_key] = matched_bid.futures_price if matched_bid else (purchase.futures_price if is_edit else 0.0)
+        st.session_state[futmonth_key] = matched_bid["futures_month"] if matched_bid else (purchase.futures_month if is_edit else "")
+        st.session_state[futprice_key] = matched_bid["futures_price"] if matched_bid else (purchase.futures_price if is_edit else 0.0)
     else:
         if futmonth_key not in st.session_state:
             st.session_state[futmonth_key] = purchase.futures_month if is_edit else ""
@@ -162,7 +159,7 @@ def render_purchase_form(session, user, locations, purchase=None):
         purchase.originator_id = location_id
         purchase.entry_date = datetime.datetime.combine(entry_date, datetime.time())
         purchase.commodity = commodity
-        purchase.delivery_window = matched_bid.futures_month if matched_bid else futures_month
+        purchase.delivery_window = matched_bid["futures_month"] if matched_bid else futures_month
         purchase.customer_name = customer_name.strip()
         purchase.bushels = bushels
         purchase.basis = basis_value
