@@ -362,6 +362,24 @@ try:
                 )
                 st.dataframe(summary_df, use_container_width=True, hide_index=True)
 
+                range_str = f"{start_date.isoformat()}_to_{end_date.isoformat()}"
+                range_subtitle = f"{start_date.strftime('%B %d, %Y')} – {end_date.strftime('%B %d, %Y')} — {total_bushels:,.0f} total bushels"
+                dl3, dl4 = st.columns(2)
+                dl3.download_button(
+                    "Export summary to Excel",
+                    dataframe_to_excel_bytes(summary_df, sheet_name="Daily Summary"),
+                    file_name=f"rcm_archive_summary_{range_str}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    key="archive_summary_export_xlsx",
+                )
+                dl4.download_button(
+                    "Export summary to PDF",
+                    summary_to_pdf_bytes("RCM Purchase Archive Summary", range_subtitle, summary_df),
+                    file_name=f"rcm_archive_summary_{range_str}.pdf",
+                    mime="application/pdf",
+                    key="archive_summary_export_pdf",
+                )
+
                 st.subheader("All purchases in range")
                 rows = [
                     {
@@ -378,6 +396,23 @@ try:
                     }
                     for p in archive_purchases
                 ]
-                st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+                purchases_df = pd.DataFrame(rows)
+                st.dataframe(purchases_df, use_container_width=True, hide_index=True)
+
+                dl5, dl6 = st.columns(2)
+                dl5.download_button(
+                    "Export purchases to Excel",
+                    dataframe_to_excel_bytes(purchases_df, sheet_name="Purchases"),
+                    file_name=f"rcm_archive_purchases_{range_str}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    key="archive_purchases_export_xlsx",
+                )
+                dl6.download_button(
+                    "Export purchases to PDF",
+                    summary_to_pdf_bytes("RCM Purchase Archive", range_subtitle, purchases_df),
+                    file_name=f"rcm_archive_purchases_{range_str}.pdf",
+                    mime="application/pdf",
+                    key="archive_purchases_export_pdf",
+                )
 finally:
     session.close()
