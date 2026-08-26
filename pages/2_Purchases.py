@@ -6,6 +6,7 @@ import streamlit as st
 from auth import logout_button, require_login
 from branding import LOGO_PATH, apply_logo
 from db import Originator, Purchase, User, get_session
+from exports import dataframe_to_excel_bytes, summary_to_pdf_bytes
 from live_bids import get_bids_for_location
 
 st.set_page_config(page_title="Purchases | RCM Originator Portal", page_icon=LOGO_PATH, layout="wide")
@@ -281,6 +282,23 @@ try:
                 ]
             )
             st.dataframe(summary_df, use_container_width=True, hide_index=True)
+
+            subtitle = f"{view_date.strftime('%B %d, %Y')} — {total_bushels:,.0f} total bushels"
+            dl1, dl2 = st.columns(2)
+            dl1.download_button(
+                "Export to Excel",
+                dataframe_to_excel_bytes(summary_df, sheet_name="Summary"),
+                file_name=f"rcm_purchase_summary_{view_date.isoformat()}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                key="summary_export_xlsx",
+            )
+            dl2.download_button(
+                "Export to PDF",
+                summary_to_pdf_bytes("RCM Purchase Summary", subtitle, summary_df),
+                file_name=f"rcm_purchase_summary_{view_date.isoformat()}.pdf",
+                mime="application/pdf",
+                key="summary_export_pdf",
+            )
 
     with tab_archive:
         st.caption("Browse and summarize purchase history across any date range.")
