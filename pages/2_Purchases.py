@@ -8,6 +8,7 @@ from branding import LOGO_PATH, apply_logo
 from db import Originator, Purchase, User, get_session
 from exports import dataframe_to_excel_bytes, summary_to_pdf_bytes
 from live_bids import get_bids_for_location
+from massive_futures import get_futures_price, month_options
 
 st.set_page_config(page_title="Purchases | RCM Originator Portal", page_icon=LOGO_PATH, layout="wide")
 apply_logo()
@@ -131,6 +132,30 @@ def render_purchase_form(session, user, locations, purchase=None):
             st.session_state[futmonth_key] = purchase.futures_month if is_edit else ""
         if futprice_key not in st.session_state:
             st.session_state[futprice_key] = purchase.futures_price if is_edit else 0.0
+
+        with st.expander("Look up a live futures price", expanded=False):
+            options = month_options(commodity)
+            month_labels = [name for _, name in options]
+            month_nums = [m for m, _ in options]
+            lu1, lu2, lu3 = st.columns([2, 1, 1])
+            lu_month_label = lu1.selectbox("Contract month", month_labels, key=f"{prefix}_lookup_month")
+            lu_year = lu2.number_input(
+                "Year", value=datetime.date.today().year, step=1, format="%d", key=f"{prefix}_lookup_year"
+            )
+            lu3.write("")  # vertical spacer to align the button with the inputs
+            lu3.write("")
+            if lu3.button("Fetch price", key=f"{prefix}_lookup_btn"):
+                lu_month_num = month_nums[month_labels.index(lu_month_label)]
+                result = get_futures_price(commodity, lu_month_num, int(lu_year))
+                if result:
+                    st.session_state[futmonth_key] = f"{lu_month_label} {int(lu_year)}"
+                    st.session_state[futprice_key] = result["price"]
+                    st.rerun()
+                else:
+                    st.error(
+                        f"No live price available for that contract ({commodity} {lu_month_label} {int(lu_year)}) "
+                        "— enter it manually."
+                    )
 
     c7, c8 = st.columns(2)
     futures_month = c7.text_input("Futures Month", key=futmonth_key, disabled=not override_futures)
